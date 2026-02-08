@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface LoginScreenProps {
   onLogin: (username: string, token: string) => void;
@@ -9,51 +9,80 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  
+  // გავყავით ერორი და წარმატება
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccess(null); // გასუფთავება
+
+    // 🛑 VALIDATION
+    if (!username.trim()) {
+      setError("⚠ PROTOCOL_ERROR: IDENTITY_FIELD_NULL");
+      return;
+    }
+
+    if (!password.trim()) {
+      setError("⚠ PROTOCOL_ERROR: ACCESS_KEY_VOID");
+      return;
+    }
+
+    if (password.length < 4) {
+      setError("⚠ SECURITY_ALERT: KEY_FRAGMENTED (MIN 4 CHARS)");
+      return;
+    }
+
     setLoading(true);
 
     const endpoint = isRegister ? "/api/auth/register" : "/api/auth/login";
-    
-    // URL შეცვალე შენი სერვერის მისამართით (მაგ: http://localhost:3000...)
     const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
     try {
       const res = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ 
+          username: username.trim(),
+          password 
+        }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Operation failed");
+        if (data.error === "User not found") throw new Error("TARGET_IDENTITY_NOT_FOUND");
+        if (data.error === "Invalid credentials") throw new Error("ACCESS_DENIED: INVALID_KEY");
+        if (data.error === "Username already taken") throw new Error("IDENTITY_ALREADY_OCCUPIED");
+        throw new Error(data.error || "SYSTEM_FAILURE");
       }
 
       if (isRegister) {
-        // რეგისტრაციის შემდეგ გადავრთავთ ლოგინზე
         setIsRegister(false);
-        setError("Account created. Access granted via Login.");
+        // ✅ აქ ვიყენებთ უკვე SUCCESS state-ს!
+        setSuccess("NODE_INITIALIZED. PLEASE AUTHENTICATE.");
         setPassword("");
       } else {
-        // ლოგინის შემდეგ ვაწვდით ტოკენს მშობელ კომპონენტს
         onLogin(data.username, data.token);
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(`❌ ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleInputFocus = () => {
+    if (error) setError(null);
+    if (success) setSuccess(null);
+  };
+
   return (
     <div className="h-full w-full flex items-center justify-center bg-slate-50 relative overflow-hidden">
-      {/* Background Dot Grid */}
       <div className="absolute inset-0 opacity-[0.03]" 
         style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '24px 24px' }}>
       </div>
@@ -82,7 +111,8 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
               placeholder="IDENTITY (USERNAME)"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm font-bold text-slate-700 placeholder:text-slate-400 font-mono"
+              onFocus={handleInputFocus}
+              className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none focus:ring-1 transition-all text-sm font-bold text-slate-700 placeholder:text-slate-400 font-mono ${error?.includes("IDENTITY") ? "border-red-500 ring-red-500/20" : "border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"}`}
             />
           </div>
           <div>
@@ -91,15 +121,47 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
               placeholder="ACCESS_KEY (PASSWORD)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm font-bold text-slate-700 placeholder:text-slate-400 font-mono"
+              onFocus={handleInputFocus}
+              className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none focus:ring-1 transition-all text-sm font-bold text-slate-700 placeholder:text-slate-400 font-mono ${error?.includes("KEY") || error?.includes("ACCESS") ? "border-red-500 ring-red-500/20" : "border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"}`}
             />
           </div>
 
-          {error && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 bg-red-50 border border-red-100 rounded-lg">
-              <p className="text-xs text-red-600 font-bold text-center uppercase tracking-wide">{error}</p>
-            </motion.div>
-          )}
+          {/* შეტყობინებების ბლოკი */}
+          <AnimatePresence mode="wait">
+            {/* 🛑 ERROR MESSAGE (RED) */}
+            {error && (
+              <motion.div 
+                key="error-box"
+                initial={{ opacity: 0, y: -10, height: 0 }} 
+                animate={{ opacity: 1, y: 0, height: "auto" }} 
+                exit={{ opacity: 0, y: -10, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="p-3 bg-red-50 border border-red-100 rounded-lg">
+                  <p className="text-[10px] font-bold text-center uppercase tracking-widest font-mono text-red-600">
+                    {error}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ✅ SUCCESS MESSAGE (GREEN) */}
+            {success && (
+              <motion.div 
+                key="success-box"
+                initial={{ opacity: 0, y: -10, height: 0 }} 
+                animate={{ opacity: 1, y: 0, height: "auto" }} 
+                exit={{ opacity: 0, y: -10, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-lg">
+                  <p className="text-[10px] font-bold text-center uppercase tracking-widest font-mono text-emerald-600">
+                    {success}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <button
             type="submit"
@@ -112,7 +174,12 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
         <div className="mt-6 text-center">
           <button 
-            onClick={() => { setIsRegister(!isRegister); setError(null); }}
+            type="button"
+            onClick={() => { 
+              setIsRegister(!isRegister); 
+              setError(null); 
+              setSuccess(null); 
+            }}
             className="text-xs font-bold text-slate-400 hover:text-indigo-600 uppercase tracking-wider transition-colors"
           >
             {isRegister ? "Already have access? Login" : "New Device? Register"}
