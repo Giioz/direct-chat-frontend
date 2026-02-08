@@ -11,12 +11,12 @@ function App() {
   const [token, setToken] = useState<string | null>(sessionStorage.getItem("chat-token"));
   const [username, setUsernameState] = useState<string | null>(sessionStorage.getItem("chat-user"));
   
- const { 
+  const { 
     messagesByRoom, onlineUsers, currentRoom, 
     loadingHistory, sendChatMessage, startPrivateChat,
     sendTypingStatus, unreadCounts, 
     typingStatus,
-    setCurrentRoom 
+    setCurrentRoom
   } = useChat(username);
 
   const handleLogin = (name: string, authToken: string) => {
@@ -32,17 +32,15 @@ function App() {
     setUsernameState(null);
     window.location.reload();
   };
-  // Back Button Function (მხოლოდ მობაილისთვის)
-  const handleBackToUsers = () => {
-    setCurrentRoom(null);
-  };
 
   const getChatPartner = (roomId: string | null) => {
     if (!roomId) return "";
     return roomId.split("_").find(u => u !== username) || "Direct Message";
   };
 
-  
+  const handleBackToUsers = () => {
+    setCurrentRoom(null);
+  };
 
   if (!username || !token) {
     return (
@@ -52,7 +50,7 @@ function App() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="h-full w-full mt-25"
+          className="h-full w-full"
         >
           <LoginScreen onLogin={handleLogin} />
         </motion.div>
@@ -61,20 +59,20 @@ function App() {
   }
 
   return (
-    <div className="h-screen flex flex-col p-4 md:p-8 overflow-hidden bg-[#f8fafc]">
+    // 1. FIX: p-0 მობაილზე (რომ ადგილი არ დაკარგოს), h-[100dvh] (რომ ბრაუზერის ბარმა არ დაფაროს)
+    <div className="h-[100dvh] flex flex-col p-0 md:p-8 overflow-hidden bg-[#f8fafc]">
       <AnimatePresence mode="wait">
-        
-        <motion.div key="chat-main" className="max-w-7xl w-full mx-auto h-full flex flex-col gap-6">
-          <Header username={username!} onLogout={handleLogout} />
+        <motion.div key="chat-main" className="max-w-7xl w-full mx-auto h-full flex flex-col md:gap-6">
+          
+          {/* Header-ს მხოლოდ დესკტოპზე ან იუზერების სიაში ვაჩენთ */}
+          <div className={`${currentRoom ? 'hidden md:block' : 'block'}`}>
+             <Header username={username!} onLogout={handleLogout} />
+          </div>
 
-          <div className="flex-1 min-h-0 grid grid-cols-12 gap-6 relative">
+          <div className="flex-1 min-h-0 grid grid-cols-12 gap-0 md:gap-6 relative h-full">
             
-            {/* 📱 LEFT COLUMN (User List) 
-                ლოგიკა: 
-                - Mobile: თუ ჩატი გახსნილია (currentRoom არის), დავმალოთ (hidden).
-                - Desktop: ყოველთვის გამოვაჩინოთ (md:block).
-            */}
-            <div className={`col-span-12 md:col-span-3 h-full overflow-hidden rounded-[24px] ${currentRoom ? 'hidden md:block' : 'block'}`}>
+            {/* LEFT COLUMN (User List) */}
+            <div className={`col-span-12 md:col-span-3 h-full overflow-hidden md:rounded-[24px] ${currentRoom ? 'hidden md:block' : 'block'}`}>
               <OnlineUsersList 
                 users={onlineUsers} onUserClick={startPrivateChat} 
                 currentRoom={currentRoom || ""} unreadCounts={unreadCounts} 
@@ -82,33 +80,28 @@ function App() {
               />
             </div>
 
-            {/* 📱 RIGHT COLUMN (Chat Area) 
-                ლოგიკა:
-                - Mobile: თუ ჩატი არ არის (currentRoom null-ია), დავმალოთ (hidden).
-                - Desktop: ყოველთვის გამოვაჩინოთ, უბრალოდ Empty State იქნება (md:flex).
-            */}
-            <div className={`col-span-12 md:col-span-9 h-full bg-white border border-slate-200 rounded-[24px] overflow-hidden shadow-sm flex flex-col ${!currentRoom ? 'hidden md:flex' : 'flex'}`}>
+            {/* RIGHT COLUMN (Chat Area) */}
+            {/* 2. FIX: rounded-none და border-0 მობაილზე, რომ მთლიანი ეკრანი დაიკავოს */}
+            <div className={`col-span-12 md:col-span-9 h-full bg-white border-0 md:border border-slate-200 md:rounded-[24px] overflow-hidden shadow-none md:shadow-sm flex flex-col ${!currentRoom ? 'hidden md:flex' : 'flex'}`}>
               {currentRoom ? (
                 <>
-                  {/* CHAT HEADER */}
-                  <div className="h-16 border-b border-slate-100 flex items-center justify-between px-4 md:px-8 bg-white/60 backdrop-blur-md">
+                  <div className="h-16 border-b border-slate-100 flex items-center justify-between px-4 md:px-8 bg-white/60 backdrop-blur-md sticky top-0 z-10">
                     <div className="flex items-center gap-3">
                       <button 
                         onClick={handleBackToUsers}
-                        className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-800 transition-colors"
+                        className="md:hidden p-2 -ml-2 mr-1 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer active:scale-95"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                         </svg>
                       </button>
 
                       <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.4)]"></div>
                       <h2 className="text-xs font-[900] uppercase tracking-[0.2em] text-slate-800 truncate max-w-[150px] md:max-w-none">
-                        Secure://{getChatPartner(currentRoom)}
+                        {getChatPartner(currentRoom)}
                       </h2>
                     </div>
 
-                    {/* SIGNAL DETECTED */}
                     <AnimatePresence>
                       {typingStatus[currentRoom] && (
                         <motion.div 
@@ -116,7 +109,7 @@ function App() {
                           className="flex items-center gap-2"
                         >
                           <span className="hidden md:inline text-[10px] font-mono font-bold text-emerald-500 uppercase tracking-widest">
-                            Signal_Detected
+                            Signal
                           </span>
                           <span className="flex gap-1">
                             <span className="w-1 h-1 bg-emerald-500 rounded-full animate-bounce"></span>
@@ -130,7 +123,8 @@ function App() {
                   
                   <ChatMessage messages={messagesByRoom[currentRoom] || []} currentUsername={username!} isLoading={loadingHistory[currentRoom]} />
 
-                  <div className="p-4 md:p-6 bg-white border-t border-slate-100">
+                  {/* 3. FIX: pb-safe არის iOS-ის Home bar-ისთვის (თუ დაამატებ CSS-ში env(safe-area-inset-bottom)) */}
+                  <div className="p-3 md:p-6 bg-white border-t border-slate-100">
                     <ChatInput onSend={sendChatMessage} onTyping={sendTypingStatus} />
                   </div>
                 </>
