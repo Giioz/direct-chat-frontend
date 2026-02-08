@@ -1,11 +1,19 @@
 import { io, Socket } from "socket.io-client";
 
+
+export interface Reaction {
+  user: string;
+  emoji: string;
+}
+
 export interface ChatMessageType {
+  _id: string;
   msg: string;
   sender: string;
   roomId: string;
   timestamp: number;
   seen?: boolean;
+  reactions?: Reaction[];
 }
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -69,6 +77,9 @@ export const sendReadSignal = (roomId: string, reader: string) => {
   socket.emit("messages_read", { roomId, reader });
 };
 
+export const sendReaction = (messageId: string, roomId: string, emoji: string, user: string) => {
+  socket.emit("message_reaction", { messageId, roomId, emoji, user });
+};
 // --- FETCHERS ---
 
 export const fetchMessageHistory = async (roomId: string): Promise<ChatMessageType[]> => {
