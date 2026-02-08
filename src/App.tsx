@@ -15,12 +15,13 @@ function App() {
     messagesByRoom, onlineUsers, currentRoom, 
     loadingHistory, sendChatMessage, startPrivateChat,
     sendTypingStatus, unreadCounts, 
-    typingStatus // ← ეს აუცილებელია ვიზუალიზაციისთვის
+    typingStatus,
+    setCurrentRoom 
   } = useChat(username);
 
   const handleLogin = (name: string, authToken: string) => {
     sessionStorage.setItem("chat-user", name);
-    sessionStorage.setItem("chat-token", authToken); // ვინახავთ ტოკენს!
+    sessionStorage.setItem("chat-token", authToken);
     setUsernameState(name);
     setToken(authToken);
   };
@@ -31,10 +32,17 @@ function App() {
     setUsernameState(null);
     window.location.reload();
   };
+  // Back Button Function (მხოლოდ მობაილისთვის)
+  const handleBackToUsers = () => {
+    setCurrentRoom(null);
+  };
+
   const getChatPartner = (roomId: string | null) => {
     if (!roomId) return "";
     return roomId.split("_").find(u => u !== username) || "Direct Message";
   };
+
+  
 
   if (!username || !token) {
     return (
@@ -46,7 +54,6 @@ function App() {
           exit={{ opacity: 0, scale: 0.95 }}
           className="h-full w-full mt-25"
         >
-          {/* აქ ვაწვდით ახალ ფუნქციას */}
           <LoginScreen onLogin={handleLogin} />
         </motion.div>
       </AnimatePresence>
@@ -56,13 +63,18 @@ function App() {
   return (
     <div className="h-screen flex flex-col p-4 md:p-8 overflow-hidden bg-[#f8fafc]">
       <AnimatePresence mode="wait">
-        {/* ... Login Screen Logic ... */}
         
         <motion.div key="chat-main" className="max-w-7xl w-full mx-auto h-full flex flex-col gap-6">
           <Header username={username!} onLogout={handleLogout} />
 
-          <div className="flex-1 min-h-0 grid grid-cols-12 gap-6">
-            <div className="col-span-3 h-full hidden md:block overflow-hidden rounded-[24px]">
+          <div className="flex-1 min-h-0 grid grid-cols-12 gap-6 relative">
+            
+            {/* 📱 LEFT COLUMN (User List) 
+                ლოგიკა: 
+                - Mobile: თუ ჩატი გახსნილია (currentRoom არის), დავმალოთ (hidden).
+                - Desktop: ყოველთვის გამოვაჩინოთ (md:block).
+            */}
+            <div className={`col-span-12 md:col-span-3 h-full overflow-hidden rounded-[24px] ${currentRoom ? 'hidden md:block' : 'block'}`}>
               <OnlineUsersList 
                 users={onlineUsers} onUserClick={startPrivateChat} 
                 currentRoom={currentRoom || ""} unreadCounts={unreadCounts} 
@@ -70,25 +82,40 @@ function App() {
               />
             </div>
 
-            <div className="col-span-12 md:col-span-9 h-full flex flex-col bg-white border border-slate-200 rounded-[24px] overflow-hidden shadow-sm">
+            {/* 📱 RIGHT COLUMN (Chat Area) 
+                ლოგიკა:
+                - Mobile: თუ ჩატი არ არის (currentRoom null-ია), დავმალოთ (hidden).
+                - Desktop: ყოველთვის გამოვაჩინოთ, უბრალოდ Empty State იქნება (md:flex).
+            */}
+            <div className={`col-span-12 md:col-span-9 h-full bg-white border border-slate-200 rounded-[24px] overflow-hidden shadow-sm flex flex-col ${!currentRoom ? 'hidden md:flex' : 'flex'}`}>
               {currentRoom ? (
                 <>
-                  <div className="h-16 border-b border-slate-100 flex items-center justify-between px-8 bg-white/60 backdrop-blur-md">
+                  {/* CHAT HEADER */}
+                  <div className="h-16 border-b border-slate-100 flex items-center justify-between px-4 md:px-8 bg-white/60 backdrop-blur-md">
                     <div className="flex items-center gap-3">
+                      <button 
+                        onClick={handleBackToUsers}
+                        className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-800 transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                        </svg>
+                      </button>
+
                       <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.4)]"></div>
-                      <h2 className="text-xs font-[900] uppercase tracking-[0.2em] text-slate-800">
-                        Secure_Session://{getChatPartner(currentRoom)}
+                      <h2 className="text-xs font-[900] uppercase tracking-[0.2em] text-slate-800 truncate max-w-[150px] md:max-w-none">
+                        Secure://{getChatPartner(currentRoom)}
                       </h2>
                     </div>
 
-                    {/* 🟢 SIGNAL DETECTED (Typing Indicator) */}
+                    {/* SIGNAL DETECTED */}
                     <AnimatePresence>
                       {typingStatus[currentRoom] && (
                         <motion.div 
                           initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
                           className="flex items-center gap-2"
                         >
-                          <span className="text-[10px] font-mono font-bold text-emerald-500 uppercase tracking-widest">
+                          <span className="hidden md:inline text-[10px] font-mono font-bold text-emerald-500 uppercase tracking-widest">
                             Signal_Detected
                           </span>
                           <span className="flex gap-1">
@@ -103,12 +130,11 @@ function App() {
                   
                   <ChatMessage messages={messagesByRoom[currentRoom] || []} currentUsername={username!} isLoading={loadingHistory[currentRoom]} />
 
-                  <div className="p-6 bg-white border-t border-slate-100">
+                  <div className="p-4 md:p-6 bg-white border-t border-slate-100">
                     <ChatInput onSend={sendChatMessage} onTyping={sendTypingStatus} />
                   </div>
                 </>
               ) : (
-                /* ... Empty State ... */
                 <div className="flex-1 flex items-center justify-center text-slate-300 uppercase font-mono text-[10px] tracking-[0.4em]">
                   Awaiting_Node_Selection
                 </div>

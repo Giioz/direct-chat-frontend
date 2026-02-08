@@ -152,6 +152,7 @@ export function useChat(username: string | null) {
     loadingHistory,
     unreadCounts,
     typingStatus,
+    setCurrentRoom,
     sendChatMessage,
     startPrivateChat,
     sendTypingStatus
