@@ -48,11 +48,30 @@ export function useChat(username: string | null) {
   // მთავარი სოკეტის ლოგიკა
   useEffect(() => {
     if (!username) return;
-    connectSocket(); // <--- აღარ სჭირდება username, ტოკენს თვითონ იღებს
+    connectSocket(); 
 
-    socket.on("connect", () => {
-  });
+    // 🟢 REACTION LISTENER
+    const handleReactionUpdate = ({ messageId, reactions }: { messageId: string, reactions: any[] }) => {
+      setMessagesByRoom((prev) => {
+        const newMap = { ...prev };
+        
+        // ვეძებთ მესიჯს ყველა ოთახში (ან კონკრეტულში, თუ სერვერი roomId-ს გამოაგზავნის)
+        Object.keys(newMap).forEach((roomId) => {
+          newMap[roomId] = newMap[roomId].map((msg) => {
+            // აქ ხდება შედარება. ახლა ორივე String იქნება და იმუშავებს
+            if (msg._id === messageId) {
+              return { ...msg, reactions }; 
+            }
+            return msg;
+          });
+        });
+        return newMap;
+      });
+    };
 
+    socket.on("message_reaction_update", handleReactionUpdate);
+
+    // 🔵 TYPING LISTENER
     const handleTyping = ({ roomId, isTyping, sender }: { roomId: string, isTyping: boolean, sender: string }) => {
       if (sender !== username) {
         setTypingStatus(prev => ({ ...prev, [roomId]: isTyping }));
@@ -60,7 +79,11 @@ export function useChat(username: string | null) {
     };
     socket.on("user_typing", handleTyping);
 
+    // 📩 MESSAGE LISTENER
     const unsubMessages = subscribeToMessages((message: ChatMessageType) => {
+      // 🕵️ DEBUG: ვამოწმებთ, აქვს თუ არა მოსულ მესიჯს ID
+      // console.log("📨 New Message:", message._id); 
+
       setMessagesByRoom(prev => ({
         ...prev,
         [message.roomId]: [...(prev[message.roomId] || []), message],
@@ -76,17 +99,16 @@ export function useChat(username: string | null) {
         }));
       }
       
-      // ✅ Real-time Read Receipt
       if (isChatOpen && isOtherUser) {
         socket.emit("messages_read", { roomId: message.roomId, reader: username });
       }
     });
 
     const unsubUsers = subscribeToOnlineUsers((users) => {
-      // console.log("📡 Users from server:", users); // დებაგინგისთვის კარგია, მაგრამ სუფთა კოდში არ გვინდა
       setOnlineUsers(users.filter(u => u !== username));
     });
 
+    // 👀 SEEN UPDATE LISTENER
     const handleSeenUpdate = ({ roomId }: { roomId: string }) => {
       setMessagesByRoom(prev => {
         if (!prev[roomId]) return prev;
@@ -101,12 +123,13 @@ export function useChat(username: string | null) {
     return () => {
       socket.off("user_typing", handleTyping);
       socket.off("messages_seen_update", handleSeenUpdate);
+      socket.off("message_reaction_update", handleReactionUpdate); // Cleanup მნიშვნელოვანია
       unsubMessages();
       unsubUsers();
     };
   }, [username]);
 
-  // Actions
+  // Actions (იგივე რჩება)
   const sendChatMessage = (msg: string) => {
     if (currentRoom && username) {
       const to = currentRoom.split("_").find(u => u !== username);
@@ -117,7 +140,6 @@ export function useChat(username: string | null) {
   const sendTypingStatus = (isTyping: boolean) => {
     if (currentRoom && username) {
       const to = currentRoom.split("_").find(u => u !== username);
-      
       sendTypingEvent({
         roomId: currentRoom,
         isTyping,
