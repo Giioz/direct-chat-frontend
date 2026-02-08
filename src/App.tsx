@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useChat } from "./hooks/useChat";
-import ChatMessage from "./components/ChatMessage";
-import ChatInput from "./components/ChatInput";
-import LoginScreen from "./components/LoginScreen";
-import Header from "./components/Header";
-import OnlineUsersList from "./components/OnlineUserList";
+import { useChat } from "./features/chat/hooks/useChat";
+import LoginScreen from "./features/auth/components/LoginScreen";
+import Header from "./features/chat/components/Header/Header";
+import OnlineUsersList from "./features/chat/components/UserList/OnlineUserList";
+import ChatInput from "./features/chat/components/ChatInput/ChatInput";
+import ChatMessageList from "./features/chat/components/MessageList/ChatMessageList";
 
 function App() {
   const [token, setToken] = useState<string | null>(sessionStorage.getItem("chat-token"));
@@ -121,8 +121,11 @@ function App() {
                     </AnimatePresence>
                   </div>
                   
-                  <ChatMessage messages={messagesByRoom[currentRoom] || []} currentUsername={username!} isLoading={loadingHistory[currentRoom]} />
-
+                  <ChatMessageList 
+                      messages={messagesByRoom[currentRoom]} 
+                      currentUsername={username} 
+                      isLoading={loadingHistory[currentRoom]} 
+                    />
                   {/* 3. FIX: pb-safe არის iOS-ის Home bar-ისთვის (თუ დაამატებ CSS-ში env(safe-area-inset-bottom)) */}
                   <div className="p-3 md:p-6 bg-white border-t border-slate-100">
                     <ChatInput onSend={sendChatMessage} onTyping={sendTypingStatus} />

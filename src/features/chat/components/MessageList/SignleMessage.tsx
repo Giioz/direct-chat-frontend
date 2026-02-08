@@ -1,41 +1,39 @@
-import { useState, useRef, useEffect, memo } from "react";
+import { useState, memo } from "react";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
-import { type ChatMessageType, sendReaction } from "../services/socket";
+import { type ChatMessageType } from "../../api/socket";
 
-interface ChatMessageProps {
-  messages: ChatMessageType[];
-  currentUsername: string;
-  isLoading?: boolean;
-}
-
-const AVAILABLE_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
-
+// ანიმაციის კონფიგურაცია
 const messageAnimation: Variants = {
   initial: { opacity: 0, y: 10, scale: 0.99 },
   animate: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 500, damping: 35, mass: 0.8 } }
 };
 
-// 🟢 1. ცალკე კომპონენტი (გატანილია გარეთ + memoized)
-// memo უზრუნველყოფს, რომ მხოლოდ ის მესიჯი განახლდეს, რომელსაც რეაქცია დაემატა
-const SingleMessage = memo(({ m, currentUsername }: { m: ChatMessageType; currentUsername: string }) => {
-  const isOwn = m.sender === currentUsername;
+const AVAILABLE_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
+
+interface SingleMessageProps {
+  message: ChatMessageType;
+  currentUsername: string;
+  onReaction: (message: ChatMessageType, emoji: string) => void; 
+}
+
+const SingleMessage = memo(({ message, currentUsername, onReaction }: SingleMessageProps) => {
+  const isOwn = message.sender === currentUsername;
   const [showMenu, setShowMenu] = useState(false);
 
-  const handleReaction = (emoji: string) => {
-    if (m._id) {
-      sendReaction(m._id, m.roomId, emoji, currentUsername);
-      setShowMenu(false);
-    }
-  };
-
-  const reactionCounts = m.reactions?.reduce((acc: any, curr) => {
+  // რეაქციის დათვლა
+  const reactionCounts = message.reactions?.reduce((acc: any, curr) => {
     acc[curr.emoji] = (acc[curr.emoji] || 0) + 1;
     return acc;
   }, {});
 
+  const handleEmojiClick = (emoji: string) => {
+    onReaction(message, emoji);
+    setShowMenu(false);
+  };
+
   return (
     <motion.div
-      layout // 🟢 layout prop ეხმარება სიმაღლის ცვლილების სმუზ ანიმაციას
+      layout
       variants={messageAnimation}
       initial="initial"
       animate="animate"
@@ -47,7 +45,7 @@ const SingleMessage = memo(({ m, currentUsername }: { m: ChatMessageType; curren
         {/* Header */}
         <div className="flex items-center gap-2 mb-2 px-1">
           <span className="text-[10px] font-[900] text-slate-400 uppercase tracking-[0.2em]">
-            {isOwn ? "Local_Node" : m.sender}
+            {isOwn ? "Local_Node" : message.sender}
           </span>
           <div className="w-1 h-1 bg-slate-200 rounded-full"></div>
           <span className="text-[9px] font-mono text-slate-300 italic uppercase">Secure_Link</span>
@@ -79,7 +77,7 @@ const SingleMessage = memo(({ m, currentUsername }: { m: ChatMessageType; curren
               {AVAILABLE_REACTIONS.map((emoji) => (
                 <button
                   key={emoji}
-                  onClick={() => handleReaction(emoji)}
+                  onClick={() => handleEmojiClick(emoji)}
                   className="w-8 h-8 flex items-center justify-center hover:bg-slate-50 rounded-full text-lg transition-transform hover:scale-125 active:scale-95 cursor-pointer"
                 >
                   {emoji}
@@ -97,12 +95,12 @@ const SingleMessage = memo(({ m, currentUsername }: { m: ChatMessageType; curren
               : "bg-white border-slate-200 text-slate-800 rounded-[22px] rounded-tl-none shadow-sm"
           }`}>
              <p className="text-[14px] leading-relaxed font-medium tracking-tight">
-                {m.msg}
+                {message.msg}
               </p>
           </div>
 
           {/* Reaction Pills */}
-          {m.reactions && m.reactions.length > 0 && (
+          {message.reactions && message.reactions.length > 0 && (
             <div className={`absolute -bottom-3 z-20 ${isOwn ? "left-0" : "right-0"}`}>
               <div className="bg-white border border-slate-200 rounded-full px-1.5 py-0.5 shadow-sm flex items-center gap-1">
                 {Object.entries(reactionCounts || {}).map(([emoji, count]) => (
@@ -119,13 +117,13 @@ const SingleMessage = memo(({ m, currentUsername }: { m: ChatMessageType; curren
         {/* Metadata */}
         <div className="flex items-center gap-2 mt-2 px-1 h-3">
           <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-tighter">
-            {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
           </span>
           {isOwn && (
             <div className="flex items-center gap-0.5 ml-1">
-              <div className={`w-1 h-1 rounded-full transition-colors duration-500 ${m.seen ? 'bg-emerald-500' : 'bg-indigo-400'}`}></div>
+              <div className={`w-1 h-1 rounded-full transition-colors duration-500 ${message.seen ? 'bg-emerald-500' : 'bg-indigo-400'}`}></div>
               <AnimatePresence>
-                {m.seen && (
+                {message.seen && (
                   <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-1 h-1 rounded-full bg-emerald-500"></motion.div>
                 )}
               </AnimatePresence>
@@ -135,40 +133,6 @@ const SingleMessage = memo(({ m, currentUsername }: { m: ChatMessageType; curren
       </div>
     </motion.div>
   );
-// 🟢 2. აქ ვუთითებთ შედარების ლოგიკას (Optional, მაგრამ memo ავტომატურად აკეთებს Shallow Compare-ს, რაც საკმარისია)
-}); 
+});
 
-export default function ChatMessage({ messages, currentUsername, isLoading }: ChatMessageProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // Scroll only if new messages added or loaded
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]); // Scroll only on length change, not reaction update
-
-  if (isLoading) {
-    return (
-      <div className="flex-1 p-8 space-y-6 overflow-hidden">
-         {[...Array(5)].map((_, i) => (
-            <div key={i} className={`flex flex-col ${i % 2 === 0 ? 'items-start' : 'items-end'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="h-2 w-16 bg-slate-200 rounded animate-pulse"></div>
-              </div>
-              <div className={`h-10 w-[60%] rounded-[20px] animate-pulse ${i % 2 === 0 ? 'bg-slate-100 rounded-tl-none' : 'bg-slate-200 rounded-tr-none'}`}></div>
-            </div>
-         ))}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex-1 overflow-y-auto p-8 overflow-x-hidden scrollbar-hide">
-      {messages.map((m, index) => (
-        // 🟢 3. აუცილებლად გამოიყენე m._id როგორც key! 
-        // Index-ის გამოყენება იწვევს ანიმაციის არევას სორტირებისას ან ჩატვირთვისას
-        <SingleMessage key={m._id || index} m={m} currentUsername={currentUsername} />
-      ))}
-      <div ref={messagesEndRef} />
-    </div>
-  );
-}
+export default SingleMessage;

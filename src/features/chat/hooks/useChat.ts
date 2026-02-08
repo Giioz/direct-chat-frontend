@@ -9,7 +9,7 @@ import socket, {
   sendTypingEvent,
   sendReadSignal,
   type ChatMessageType
-} from "../services/socket";
+} from "../api/socket";
 
 export function useChat(username: string | null) {
   const [messagesByRoom, setMessagesByRoom] = useState<Record<string, ChatMessageType[]>>({});
