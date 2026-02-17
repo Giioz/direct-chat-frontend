@@ -1,16 +1,16 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useChat } from "./features/chat/hooks/useChat";
+import { AnimatePresence, motion } from "framer-motion";
 import LoginScreen from "./features/auth/components/LoginScreen";
-import Header from "./features/chat/components/Header/Header";
-import OnlineUsersList from "./features/chat/components/UserList/OnlineUserList";
 import ChatInput from "./features/chat/components/ChatInput/ChatInput";
+import Header from "./features/chat/components/Header/Header";
 import ChatMessageList from "./features/chat/components/MessageList/ChatMessageList";
+import OnlineUsersList from "./features/chat/components/UserList/OnlineUserList";
+import { useChat } from "./features/chat/hooks/useChat";
+import { useChatStore } from "./features/chat/stores/useChatStore";
 
 function App() {
-  const [token, setToken] = useState<string | null>(sessionStorage.getItem("chat-token"));
-  const [username, setUsernameState] = useState<string | null>(sessionStorage.getItem("chat-user"));
+  const { username, token, setAuth } = useChatStore();
   
+  // Initialize socket listeners and get chat interface
   const { 
     messagesByRoom, onlineUsers, currentRoom, 
     loadingHistory, sendChatMessage, startPrivateChat,
@@ -20,16 +20,11 @@ function App() {
   } = useChat(username);
 
   const handleLogin = (name: string, authToken: string) => {
-    sessionStorage.setItem("chat-user", name);
-    sessionStorage.setItem("chat-token", authToken);
-    setUsernameState(name);
-    setToken(authToken);
+    setAuth(name, authToken);
   };
 
   const handleLogout = () => {
-    sessionStorage.clear();
-    setToken(null);
-    setUsernameState(null);
+    setAuth(null, null);
     window.location.reload();
   };
 
@@ -59,19 +54,19 @@ function App() {
   }
 
   return (
-    // 1. FIX: p-0 მობაილზე (რომ ადგილი არ დაკარგოს), h-[100dvh] (რომ ბრაუზერის ბარმა არ დაფაროს)
+    // Mobile layout fixes
     <div className="h-[100dvh] flex flex-col p-0 md:p-8 overflow-hidden bg-[#f8fafc]">
       <AnimatePresence mode="wait">
         <motion.div key="chat-main" className="max-w-7xl w-full mx-auto h-full flex flex-col md:gap-6">
           
-          {/* Header-ს მხოლოდ დესკტოპზე ან იუზერების სიაში ვაჩენთ */}
+          {/* Responsive Header */}
           <div className={`${currentRoom ? 'hidden md:block' : 'block'}`}>
              <Header username={username!} onLogout={handleLogout} />
           </div>
 
           <div className="flex-1 min-h-0 grid grid-cols-12 gap-0 md:gap-6 relative h-full">
             
-            {/* LEFT COLUMN (User List) */}
+            {/* User List */}
             <div className={`col-span-12 md:col-span-3 h-full overflow-hidden md:rounded-[24px] ${currentRoom ? 'hidden md:block' : 'block'}`}>
               <OnlineUsersList 
                 users={onlineUsers} onUserClick={startPrivateChat} 
@@ -80,8 +75,8 @@ function App() {
               />
             </div>
 
-            {/* RIGHT COLUMN (Chat Area) */}
-            {/* 2. FIX: rounded-none და border-0 მობაილზე, რომ მთლიანი ეკრანი დაიკავოს */}
+            {/* Chat Area */}
+            {/* Mobile friendly borders */}
             <div className={`col-span-12 md:col-span-9 h-full bg-white border-0 md:border border-slate-200 md:rounded-[24px] overflow-hidden shadow-none md:shadow-sm flex flex-col ${!currentRoom ? 'hidden md:flex' : 'flex'}`}>
               {currentRoom ? (
                 <>
@@ -126,7 +121,7 @@ function App() {
                       currentUsername={username} 
                       isLoading={loadingHistory[currentRoom]} 
                     />
-                  {/* 3. FIX: pb-safe არის iOS-ის Home bar-ისთვის (თუ დაამატებ CSS-ში env(safe-area-inset-bottom)) */}
+                  {/* iOS Safe Area */}
                   <div className="p-3 md:p-6 bg-white border-t border-slate-100">
                     <ChatInput onSend={sendChatMessage} onTyping={sendTypingStatus} />
                   </div>

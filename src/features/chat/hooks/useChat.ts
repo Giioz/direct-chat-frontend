@@ -1,23 +1,37 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import socket, { 
-  subscribeToMessages, 
-  sendMessage, 
-  fetchMessageHistory, 
-  connectSocket, 
-  subscribeToOnlineUsers, 
+import { useEffect, useCallback, useRef } from "react";
+import socket, {
+  subscribeToMessages,
+  sendMessage,
+  fetchMessageHistory,
+  connectSocket,
+  subscribeToOnlineUsers,
   joinRoom,
   sendTypingEvent,
   sendReadSignal,
   type ChatMessageType
 } from "../api/socket";
+import { useChatStore } from "../stores/useChatStore";
 
 export function useChat(username: string | null) {
-  const [messagesByRoom, setMessagesByRoom] = useState<Record<string, ChatMessageType[]>>({});
-  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
-  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
-  const [currentRoom, setCurrentRoom] = useState<string | null>(null);
-  const [loadingHistory, setLoadingHistory] = useState<Record<string, boolean>>({});
-  const [typingStatus, setTypingStatus] = useState<Record<string, boolean>>({});
+  // Select state from store
+  const {
+    messagesByRoom,
+    onlineUsers,
+    currentRoom,
+    loadingHistory,
+    unreadCounts,
+    typingStatus,
+    setCurrentRoom: setStoreCurrentRoom,
+    setOnlineUsers,
+    addMessage,
+    setMessages,
+    updateMessageReaction,
+    markMessagesAsSeen,
+    setTyping,
+    incrementUnread,
+    clearUnread,
+    setLoading
+  } = useChatStore();
 
   const currentRoomRef = useRef<string | null>(null);
 
@@ -25,80 +39,66 @@ export function useChat(username: string | null) {
     currentRoomRef.current = currentRoom;
   }, [currentRoom]);
 
+  // Sync username/token if provided (optional, usually handled in App)
+  useEffect(() => {
+    if (username) {
+      // Sync auth
+    }
+  }, [username]);
+
   const markAsRead = useCallback((roomId: string) => {
     if (username) {
       sendReadSignal(roomId, username);
+      // Optimistic update
+      clearUnread(roomId);
     }
-  }, [username]);
+  }, [username, clearUnread]);
 
   const loadHistory = useCallback(async (roomId: string) => {
     if (messagesByRoom[roomId]) return;
 
-    setLoadingHistory(prev => ({ ...prev, [roomId]: true }));
+    setLoading(roomId, true);
     try {
       const history = await fetchMessageHistory(roomId);
-      setMessagesByRoom(prev => ({ ...prev, [roomId]: history }));
+      setMessages(roomId, history);
     } catch (err) {
       console.error("Failed to fetch history:", err);
     } finally {
-      setLoadingHistory(prev => ({ ...prev, [roomId]: false }));
+      setLoading(roomId, false);
     }
-  }, [messagesByRoom]);
+  }, [messagesByRoom, setLoading, setMessages]);
 
-  // მთავარი სოკეტის ლოგიკა
+  // Main Socket Logic
   useEffect(() => {
     if (!username) return;
-    connectSocket(); 
+    connectSocket();
 
-    // 🟢 REACTION LISTENER
+    // Reactions
     const handleReactionUpdate = ({ messageId, reactions }: { messageId: string, reactions: any[] }) => {
-      setMessagesByRoom((prev) => {
-        const newMap = { ...prev };
-        
-        // ვეძებთ მესიჯს ყველა ოთახში (ან კონკრეტულში, თუ სერვერი roomId-ს გამოაგზავნის)
-        Object.keys(newMap).forEach((roomId) => {
-          newMap[roomId] = newMap[roomId].map((msg) => {
-            // აქ ხდება შედარება. ახლა ორივე String იქნება და იმუშავებს
-            if (msg._id === messageId) {
-              return { ...msg, reactions }; 
-            }
-            return msg;
-          });
-        });
-        return newMap;
-      });
+      updateMessageReaction(messageId, reactions);
     };
 
     socket.on("message_reaction_update", handleReactionUpdate);
 
-    // 🔵 TYPING LISTENER
+    // Typing
     const handleTyping = ({ roomId, isTyping, sender }: { roomId: string, isTyping: boolean, sender: string }) => {
       if (sender !== username) {
-        setTypingStatus(prev => ({ ...prev, [roomId]: isTyping }));
+        setTyping(roomId, isTyping);
       }
     };
     socket.on("user_typing", handleTyping);
 
-    // 📩 MESSAGE LISTENER
+    // Messages
     const unsubMessages = subscribeToMessages((message: ChatMessageType) => {
-      // 🕵️ DEBUG: ვამოწმებთ, აქვს თუ არა მოსულ მესიჯს ID
-      // console.log("📨 New Message:", message._id); 
-
-      setMessagesByRoom(prev => ({
-        ...prev,
-        [message.roomId]: [...(prev[message.roomId] || []), message],
-      }));
+      addMessage(message);
 
       const isChatOpen = message.roomId === currentRoomRef.current;
       const isOtherUser = message.sender !== username;
 
       if (!isChatOpen && isOtherUser) {
-        setUnreadCounts(prev => ({
-          ...prev,
-          [message.roomId]: (prev[message.roomId] || 0) + 1
-        }));
+        incrementUnread(message.roomId);
       }
-      
+
       if (isChatOpen && isOtherUser) {
         socket.emit("messages_read", { roomId: message.roomId, reader: username });
       }
@@ -108,28 +108,22 @@ export function useChat(username: string | null) {
       setOnlineUsers(users.filter(u => u !== username));
     });
 
-    // 👀 SEEN UPDATE LISTENER
+    // Seen status
     const handleSeenUpdate = ({ roomId }: { roomId: string }) => {
-      setMessagesByRoom(prev => {
-        if (!prev[roomId]) return prev;
-        return {
-          ...prev,
-          [roomId]: prev[roomId].map(m => ({ ...m, seen: true }))
-        };
-      });
+      markMessagesAsSeen(roomId);
     };
     socket.on("messages_seen_update", handleSeenUpdate);
 
     return () => {
       socket.off("user_typing", handleTyping);
       socket.off("messages_seen_update", handleSeenUpdate);
-      socket.off("message_reaction_update", handleReactionUpdate); // Cleanup მნიშვნელოვანია
+      socket.off("message_reaction_update", handleReactionUpdate);
       unsubMessages();
       unsubUsers();
     };
-  }, [username]);
+  }, [username, addMessage, incrementUnread, setOnlineUsers, setTyping, markMessagesAsSeen, updateMessageReaction]);
 
-  // Actions (იგივე რჩება)
+  // Actions
   const sendChatMessage = (msg: string) => {
     if (currentRoom && username) {
       const to = currentRoom.split("_").find(u => u !== username);
@@ -151,16 +145,12 @@ export function useChat(username: string | null) {
 
   const startPrivateChat = (targetUser: string) => {
     const roomId = [username, targetUser].sort().join("_");
-    setCurrentRoom(roomId);
-    
+    setStoreCurrentRoom(roomId); // Use store action
+
     joinRoom(roomId);
     markAsRead(roomId);
 
-    setUnreadCounts(prev => {
-      const newCounts = { ...prev };
-      delete newCounts[roomId];
-      return newCounts;
-    });
+    // clearUnread is called in markAsRead
 
     if (!messagesByRoom[roomId]) {
       loadHistory(roomId);
@@ -174,7 +164,7 @@ export function useChat(username: string | null) {
     loadingHistory,
     unreadCounts,
     typingStatus,
-    setCurrentRoom,
+    setCurrentRoom: setStoreCurrentRoom,
     sendChatMessage,
     startPrivateChat,
     sendTypingStatus
