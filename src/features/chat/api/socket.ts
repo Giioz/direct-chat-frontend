@@ -25,10 +25,10 @@ const socket: Socket = io(SOCKET_URL, {
 // 1. Username არგუმენტი აღარ გვჭირდება, ტოკენი თავის საქმეს აკეთებს
 export const connectSocket = () => {
   const token = sessionStorage.getItem("chat-token");
-  
+
   if (token) {
     // 1. ვანახლებთ აუთენტიფიკაციის ობიექტს
-    socket.auth = { token }; 
+    socket.auth = { token };
 
     // 2. ⚠️ მთავარი ცვლილება: 
     // თუ სოკეტი უკვე "connected" არის (მაგალითად წინა სესიიდან),
@@ -36,7 +36,7 @@ export const connectSocket = () => {
     if (socket.connected) {
       socket.disconnect();
     }
-    
+
     // 3. ახლიდან ვაკავშირებთ
     socket.connect();
     console.log("🔌 Connecting with token...");
@@ -85,7 +85,7 @@ export const sendReaction = (messageId: string, roomId: string, emoji: string, u
 export const fetchMessageHistory = async (roomId: string): Promise<ChatMessageType[]> => {
   try {
     const token = sessionStorage.getItem("chat-token"); // <--- ვიღებთ ტოკენს
-    
+
     const response = await fetch(`${SOCKET_URL}/api/messages/${roomId}`, {
       method: "GET",
       headers: {
@@ -103,6 +103,49 @@ export const fetchMessageHistory = async (roomId: string): Promise<ChatMessageTy
     console.error("Error fetching message history:", error);
     return [];
   }
+};
+
+export const fetchFriends = async () => {
+  try {
+    const token = sessionStorage.getItem("chat-token");
+    const response = await fetch(`${SOCKET_URL}/api/friends`, {
+      headers: { "Authorization": token || "" }
+    });
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching friends:", error);
+    return { friends: [], pendingRequests: [] };
+  }
+};
+
+export const sendFriendRequest = async (toUsername: string) => {
+  const token = sessionStorage.getItem("chat-token");
+  const response = await fetch(`${SOCKET_URL}/api/friends/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": token || "" },
+    body: JSON.stringify({ toUsername })
+  });
+  return await response.json();
+};
+
+export const acceptFriendRequest = async (fromUserId: string) => {
+  const token = sessionStorage.getItem("chat-token");
+  const response = await fetch(`${SOCKET_URL}/api/friends/accept`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": token || "" },
+    body: JSON.stringify({ fromUserId })
+  });
+  return await response.json();
+};
+
+export const declineFriendRequest = async (fromUserId: string) => {
+  const token = sessionStorage.getItem("chat-token");
+  const response = await fetch(`${SOCKET_URL}/api/friends/decline`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": token || "" },
+    body: JSON.stringify({ fromUserId })
+  });
+  return await response.json();
 };
 
 export default socket;

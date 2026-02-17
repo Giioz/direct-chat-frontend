@@ -30,7 +30,15 @@ export function useChat(username: string | null) {
     setTyping,
     incrementUnread,
     clearUnread,
-    setLoading
+    setLoading,
+
+    // Friends
+    friends,
+    pendingRequests,
+    fetchFriends,
+    sendFriendRequest,
+    acceptFriendRequest,
+    declineFriendRequest
   } = useChatStore();
 
   const currentRoomRef = useRef<string | null>(null);
@@ -40,11 +48,13 @@ export function useChat(username: string | null) {
   }, [currentRoom]);
 
   // Sync username/token if provided (optional, usually handled in App)
+  // Sync username/token if provided (optional, usually handled in App)
   useEffect(() => {
     if (username) {
-      // Sync auth
+      // Sync auth & fetch friends
+      fetchFriends();
     }
-  }, [username]);
+  }, [username, fetchFriends]);
 
   const markAsRead = useCallback((roomId: string) => {
     if (username) {
@@ -114,10 +124,26 @@ export function useChat(username: string | null) {
     };
     socket.on("messages_seen_update", handleSeenUpdate);
 
+    // Friend Events
+    const handleFriendRequest = (data: any) => {
+      // Refresh friends to get the new request
+      fetchFriends();
+      // Optional: Toast notification
+    };
+    socket.on("friend_request", handleFriendRequest);
+
+    const handleFriendAccepted = (data: any) => {
+      // Refresh friends to see new friend
+      fetchFriends();
+    };
+    socket.on("friend_accepted", handleFriendAccepted);
+
     return () => {
       socket.off("user_typing", handleTyping);
       socket.off("messages_seen_update", handleSeenUpdate);
       socket.off("message_reaction_update", handleReactionUpdate);
+      socket.off("friend_request", handleFriendRequest);
+      socket.off("friend_accepted", handleFriendAccepted);
       unsubMessages();
       unsubUsers();
     };
@@ -167,6 +193,13 @@ export function useChat(username: string | null) {
     setCurrentRoom: setStoreCurrentRoom,
     sendChatMessage,
     startPrivateChat,
-    sendTypingStatus
+    sendTypingStatus,
+
+    // Friend API
+    friends,
+    pendingRequests,
+    sendFriendRequest,
+    acceptFriendRequest,
+    declineFriendRequest
   };
 }

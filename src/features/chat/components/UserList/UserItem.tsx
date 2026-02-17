@@ -5,10 +5,11 @@ interface UserItemProps {
   username: string;
   isSelected: boolean;
   unreadCount: number;
+  isOnline: boolean;
   onClick: () => void;
 }
 
-const UserItem = memo(({ username, isSelected, unreadCount, onClick }: UserItemProps) => {
+const UserItem = memo(({ username, isSelected, unreadCount, isOnline, onClick }: UserItemProps) => {
   return (
     <button
       onClick={onClick}
@@ -32,8 +33,8 @@ const UserItem = memo(({ username, isSelected, unreadCount, onClick }: UserItemP
         <p className={`font-bold text-sm truncate ${isSelected ? "text-white" : "text-slate-900"}`}>
           {username}
         </p>
-        <p className="text-[9px] font-mono uppercase tracking-tighter text-slate-400">
-          Node_Active
+        <p className={`text-[9px] font-mono uppercase tracking-tighter ${isOnline ? "text-emerald-500 font-bold" : "text-slate-400"}`}>
+          {isOnline ? "Online" : "Offline"}
         </p>
       </div>
 

@@ -16,7 +16,8 @@ function App() {
     loadingHistory, sendChatMessage, startPrivateChat,
     sendTypingStatus, unreadCounts, 
     typingStatus,
-    setCurrentRoom
+    setCurrentRoom,
+    friends, pendingRequests, sendFriendRequest, acceptFriendRequest, declineFriendRequest
   } = useChat(username);
 
   const handleLogin = (name: string, authToken: string) => {
@@ -69,9 +70,16 @@ function App() {
             {/* User List */}
             <div className={`col-span-12 md:col-span-3 h-full overflow-hidden md:rounded-[24px] ${currentRoom ? 'hidden md:block' : 'block'}`}>
               <OnlineUsersList 
-                users={onlineUsers} onUserClick={startPrivateChat} 
-                currentRoom={currentRoom || ""} unreadCounts={unreadCounts} 
+                onlineUsers={onlineUsers} 
+                onUserClick={startPrivateChat} 
+                currentRoom={currentRoom || ""} 
+                unreadCounts={unreadCounts} 
                 myUsername={username!} 
+                friends={friends}
+                pendingRequests={pendingRequests}
+                onSendRequest={sendFriendRequest}
+                onAcceptRequest={acceptFriendRequest}
+                onDeclineRequest={declineFriendRequest}
               />
             </div>
 

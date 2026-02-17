@@ -1,5 +1,11 @@
 import { create } from "zustand";
 import type { ChatMessageType } from "../api/socket";
+import {
+    fetchFriends as apiFetchFriends,
+    sendFriendRequest as apiSendRequest,
+    acceptFriendRequest as apiAcceptRequest,
+    declineFriendRequest as apiDeclineRequest
+} from "../api/socket";
 
 interface ChatState {
     // auth
@@ -11,6 +17,10 @@ interface ChatState {
     unreadCounts: Record<string, number>;
     onlineUsers: string[];
 
+    // friends
+    friends: any[]; // Using any for now to avoid extensive type duplication
+    pendingRequests: any[];
+
     // ui
     currentRoom: string | null;
     loadingHistory: Record<string, boolean>;
@@ -20,6 +30,12 @@ interface ChatState {
     setAuth: (username: string | null, token: string | null) => void;
     setCurrentRoom: (roomId: string | null) => void;
     setOnlineUsers: (users: string[]) => void;
+
+    // friend actions
+    fetchFriends: () => Promise<void>;
+    sendFriendRequest: (username: string) => Promise<any>;
+    acceptFriendRequest: (userId: string) => Promise<void>;
+    declineFriendRequest: (userId: string) => Promise<void>;
 
     // messages
     addMessage: (message: ChatMessageType) => void;
@@ -45,6 +61,8 @@ export const useChatStore = create<ChatState>((set) => ({
     messagesByRoom: {},
     unreadCounts: {},
     onlineUsers: [],
+    friends: [],
+    pendingRequests: [],
     currentRoom: null,
     loadingHistory: {},
     typingStatus: {},
@@ -63,6 +81,35 @@ export const useChatStore = create<ChatState>((set) => ({
     setCurrentRoom: (roomId) => set({ currentRoom: roomId }),
 
     setOnlineUsers: (users) => set({ onlineUsers: users }),
+
+    fetchFriends: async () => {
+        const data = await apiFetchFriends();
+        if (data.friends) {
+            set({ friends: data.friends, pendingRequests: data.pendingRequests || [] });
+        }
+    },
+
+    sendFriendRequest: async (username) => {
+        return await apiSendRequest(username);
+    },
+
+    acceptFriendRequest: async (userId) => {
+        const res = await apiAcceptRequest(userId);
+        if (res.success) {
+            // refresh
+            const data = await apiFetchFriends();
+            set({ friends: data.friends, pendingRequests: data.pendingRequests || [] });
+        }
+    },
+
+    declineFriendRequest: async (userId) => {
+        const res = await apiDeclineRequest(userId);
+        if (res.success) {
+            set((state) => ({
+                pendingRequests: state.pendingRequests.filter((req: any) => req._id !== userId)
+            }));
+        }
+    },
 
     addMessage: (message) => set((state) => ({
         messagesByRoom: {
