@@ -125,14 +125,14 @@ export function useChat(username: string | null) {
     socket.on("messages_seen_update", handleSeenUpdate);
 
     // Friend Events
-    const handleFriendRequest = (data: any) => {
+    const handleFriendRequest = () => {
       // Refresh friends to get the new request
       fetchFriends();
       // Optional: Toast notification
     };
     socket.on("friend_request", handleFriendRequest);
 
-    const handleFriendAccepted = (data: any) => {
+    const handleFriendAccepted = () => {
       // Refresh friends to see new friend
       fetchFriends();
     };
